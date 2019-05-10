@@ -134,9 +134,8 @@ def get_courses(link):
 		comp = comp.split(':', 1)[-1].strip()
 		comp = [x.strip() for x in comp.split('/')[-1].split(',')]
 		#getting the prerequisites from after the colon in the sentence
-		dep = Prereq(pre).prereqs
+		dep = Prereq(pre)
 		pre = pre.split(':', 1)[-1].strip()
-		#TODO: ideally we would like to save the whole Prereq object to the dataframe, but since it does not output to json, using this in the meantime
 		courses.append([code, title, credits, desc, comp, pre, dep])
 	return pd.DataFrame(courses, columns = ['code', 'title', 'credits', 'desc', 'components', 'prerequisites', 'dependencies'])
 
@@ -241,9 +240,27 @@ class Prereq:
 
 		return match_str
 
+	parsers = {
+		"not_combined_for_credits" : lambda self, match: self.parse_codes(match)[0],
+		"no_credits_in_program" : lambda self, match: match.group(),
+		"prereqs" : parse_codes,
+		"coreqs" : parse_codes,
+		"CGPA_requirements" : lambda self, match: match.group(),	#TODO: extract the float and only store that, might also want to combine with permission somehow
+
+		"prior_knowledge" : lambda self, match: match.group(),
+		"additional_prereqs" : lambda self, match: match is not None,
+		"permission" : lambda self, match: match is not None,
+		"interview" : lambda self, match: match is not None,
+
+		"also_offered_as" : lambda self, match: self.parse_codes(match)[0],
+		"primarily_intended_for" : lambda self, match: match.group(),
+		"previously" : lambda self, match: self.parse_codes(match)[0],
+	}
+
 	def __init__(self, prereq_str):
 
-		self.prereqs = []
+		self.raw_str = prereq_str
+		self.prereqs = [[]]
 		self.subs = {
 			"credit_count" : "",
 			"ForU" : "",
@@ -255,8 +272,7 @@ class Prereq:
 			for key, pattern in pt.prereq.items():
 				match = pattern.search(sentence)
 				if match is not None:
-					if key == "prerequisites":
-						self.prereqs = self.parse_codes(match)
+					self.__dict__[key] = self.parsers[key](self, match)
 					break
 
 def get_course_tables(links):
