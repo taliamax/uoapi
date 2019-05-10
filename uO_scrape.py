@@ -62,6 +62,18 @@ def get_courses(link):
 	Scrapes the page given by link for courses and their descriptions, components, prerequisites, etc.
 	Used in get_subjects.ipynb
 	'''
+	def process_paragraph(cls):
+		try:
+			var = course.find('p', attrs={'class':cls})
+			var = var.text.replace('\xa0', ' ').strip()
+		except AttributeError as e:
+			if var is None:
+				var = ''
+			else:
+				print(course)
+				raise e
+		return var
+
 	courses = []
 	raw_courses = BeautifulSoup(requests.get(link).text, 'html.parser')
 	raw_courses = raw_courses.find_all('div', attrs = {'class':'courseblock'})
@@ -76,57 +88,10 @@ def get_courses(link):
 			credits = extract_credits(title)[0]
 			title = re.sub(pt.code_re, '', title)
 			title = re.sub(pt.credit_re, '', title).strip()
-		try:
-			desc = course.find('p', attrs={'class':'courseblockdesc'})
-			desc = desc.text.replace('\xa0', ' ').strip()
-		except AttributeError as e:
-			if desc is None:
-				desc = ''
-			else:
-				print(course)
-				raise e
-		#parsing the course component and prerequisite info from the courseblockextra and distinguishing them
-		blocks = []
-		for block in course.find_all('p', attrs={'class':'courseblockextra'}):
-			try:
-				blocks.append(block.text.replace('\xa0', ' ').strip().strip('.'))
-			except AttributeError as e:
-				print(course)
-				print(block)
-				raise e
-		if len(blocks) == 0:
-			comp = ''
-			pre = ''
-		elif len(blocks) == 1:
-			if ("Volet" in blocks[0]) or ("Course Component" in blocks[0]):
-				comp = blocks[0]
-				pre = ''
-			elif ("Préalable" in blocks[0]) or ("Prerequisite" in blocks[0]):
-				comp = ''
-				pre = blocks[0]
-			else:
-				comp = ''
-				pre = ''
-		elif len(blocks) == 2:
-			cond_comp0 = ("Volet" in blocks[0]) or ("Course Component" in blocks[0])
-			cond_pre1 = ("Préalable" in blocks[1]) or ("Prerequisite" in blocks[1])
-			cond_comp1 = ("Volet" in blocks[1]) or ("Course Component" in blocks[1])
-			cond_pre0 = ("Préalable" in blocks[0]) or ("Prerequisite" in blocks[0])
-			if cond_comp0 and not cond_pre0:
-				comp = blocks[0]
-			elif cond_comp1 and not cond_pre1:
-				comp = blocks[1]
-			else:
-				comp = ''
-			if cond_pre0 and not cond_comp0:
-				pre = blocks[0]
-			elif cond_pre1 and not cond_comp1:
-				pre = blocks[1]
-			else:
-				pre = ''
-		else:
-			comp = ''
-			pre = ''
+
+		desc = process_paragraph('courseblockdesc')
+		comp = process_paragraph('courseblockextra noindent').strip('.')
+		pre = process_paragraph('courseblockextra highlight noindent').strip('.')
 		#adding component info to the end of the description
 		desc = desc + '\n' + comp
 		desc = desc.strip()
@@ -274,6 +239,8 @@ class Prereq:
 				if match is not None:
 					self.__dict__[key] = self.parsers[key](self, match)
 					break
+			else:
+				print(sentence)
 
 def get_course_tables(links):
 	'''
